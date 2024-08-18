@@ -179,6 +179,35 @@ app.get('/cancel', (req, res) => {
     res.redirect('/');
 });
 
+
+
+
+
+app.post('/create-payment-intent', async (req, res) => {
+  const { items } = req.body;
+
+  // Calculate the order total based on items in the cart
+  const amount = items.reduce((total, item) => total + item.price * 100, 0); // Convert to cents
+
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency: 'usd',
+      automatic_payment_methods: {
+        enabled: true, // Enables Apple Pay and Google Pay
+      },
+    });
+
+    res.send({
+      clientSecret: paymentIntent.client_secret,
+    });
+  } catch (error) {
+    console.error('Error creating payment intent:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+
 app.listen(PORT, () => {
   console.log(`Node server listening at http://localhost:${PORT}/`);
 });
