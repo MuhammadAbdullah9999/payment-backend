@@ -183,30 +183,57 @@ app.get('/cancel', (req, res) => {
 
 
 
+// app.post('/create-payment-intent', async (req, res) => {
+//   try {
+//     const { items } = req.body;
 
-app.post('/create-payment-intent', async (req, res) => {
-  const { items } = req.body;
+//     // Calculate the total amount based on the items
+//     const amount = items.reduce((sum, item) => sum + item.price * 100, 0);
 
-  // Calculate the order total based on items in the cart
-  const amount = items.reduce((total, item) => total + item.price * 100, 0); // Convert to cents
+//     // Create a PaymentIntent
+//     const paymentIntent = await stripe.paymentIntents.create({
+//       amount,
+//       currency: 'usd',
+//       payment_method_types: ['card'],
+//       // Add payment_method_options if necessary for specific methods
+//     });
 
-  try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency: 'usd',
-      automatic_payment_methods: {
-        enabled: true, // Enables Apple Pay and Google Pay
-      },
-    });
+//     res.json({ clientSecret: paymentIntent.client_secret });
+//   } catch (error) {
+//     console.error('Error creating PaymentIntent:', error);
+//     res.status(500).send('Server error');
+//   }
+// });
 
-    res.send({
-      clientSecret: paymentIntent.client_secret,
-    });
-  } catch (error) {
-    console.error('Error creating payment intent:', error);
-    res.status(500).send('Internal Server Error');
-  }
-});
+// app.post('/create-payment-intent', async (req, res) => {
+//   try {
+//     const { items } = req.body;
+//     const line_items = items.map(item => ({
+//       price_data: {
+//         currency: 'usd',
+//         product_data: {
+//           name: item.name,
+//         },
+//         unit_amount: item.price * 10, // Stripe uses the smallest currency unit
+//       },
+//       quantity: 1,
+//     }));
+
+//     const paymentIntent = await stripe.paymentIntents.create({
+//       amount: line_items.reduce((sum, item) => sum + item.price_data.unit_amount * item.quantity, 0),
+//       currency: 'usd',
+//       payment_method_types: ['card', 'google_pay', 'apple_pay'],
+//       confirm: true,
+//     });
+
+//     res.json({ clientSecret: paymentIntent.client_secret });
+//   } catch (error) {
+//     console.error('Error creating PaymentIntent:', error);
+//     res.status(500).send('Server error');
+//   }
+// });
+
+
 
 
 app.listen(PORT, () => {
