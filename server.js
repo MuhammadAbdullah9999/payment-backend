@@ -1,0 +1,184 @@
+const express = require('express');
+const fetch = require('node-fetch');
+require('dotenv').config();
+const path = require('path');
+const cors=require('cors');
+const bodyParser=require('body-parser');
+const stripe = require('stripe')("sk_test_51NqwwXJKcOK4e5vDzhs8CIbQJOGfT3k876mvS24K4A14w1CO6KQVJDFfivMRlomQvSrZgt0R5ell0Hc6ZHHgsyn2008aHZ3UoA");
+
+
+const PAYPAL_CLIENT_ID="ATGlhVtnoiBx-R5iZYujoTcLdYcT3QVj8rTTY7DtARYMoOmSG8zoF3ZpZL2uzkfqxjp8UObuHTiFCBom"
+const PAYPAL_CLIENT_SECRET="EPd5czXnNyEKvZYqaUyGf-H6zzaMGG_76nhaYmQAgNMKkJdRtQipTz4omXPRsOUTYmFLMz5qq4g14BFA"
+const PORT=5000;
+
+const base = "https://api-m.sandbox.paypal.com";
+const app = express();
+
+app.use(express.static("client/dist"));
+app.use(express.json());
+app.use(cors())
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+
+
+const generateAccessToken = async () => {
+  try {
+    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+      throw new Error("MISSING_API_CREDENTIALS");
+    }
+    const auth = Buffer.from(
+      PAYPAL_CLIENT_ID + ":" + PAYPAL_CLIENT_SECRET,
+    ).toString("base64");
+    const response = await fetch(`${base}/v1/oauth2/token`, {
+      method: "POST",
+      body: "grant_type=client_credentials",
+      headers: {
+        Authorization: `Basic ${auth}`,
+      },
+    });
+
+    const data = await response.json();
+    return data.access_token;
+  } catch (error) {
+    console.error("Failed to generate Access Token:", error);
+  }
+};
+
+const createOrder = async (cart) => {
+  console.log(
+    "shopping cart information passed from the frontend createOrder() callback:",
+    cart,
+  );
+
+  const accessToken = await generateAccessToken();
+  const url = `${base}/v2/checkout/orders`;
+  const payload = {
+    intent: "CAPTURE",
+    purchase_units: [
+      {
+        amount: {
+          currency_code: "USD",
+          value: "100.00",
+        },
+      },
+    ],
+    application_context: {
+      shipping_preference: "NO_SHIPPING", // This line prevents shipping details from being included
+
+    },
+  };
+
+  const response = await fetch(url, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  return handleResponse(response);
+};
+
+const captureOrder = async (orderID) => {
+  const accessToken = await generateAccessToken();
+  const url = `${base}/v2/checkout/orders/${orderID}/capture`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  return handleResponse(response);
+};
+
+async function handleResponse(response) {
+  try {
+    const jsonResponse = await response.json();
+    return {
+      jsonResponse,
+      httpStatusCode: response.status,
+    };
+  } catch (err) {
+    const errorMessage = await response.text();
+    throw new Error(errorMessage);
+  }
+}
+
+app.post("/api/orders", async (req, res) => {
+    console.log(req.body)
+  try {
+    const { cart } = req.body;
+    const { jsonResponse, httpStatusCode } = await createOrder(cart);
+    res.status(httpStatusCode).json(jsonResponse);
+  } catch (error) {
+    console.error("Failed to create order:", error);
+    res.status(500).json({ error: "Failed to create order." });
+  }
+});
+
+app.post("/api/orders/:orderID/capture", async (req, res) => {
+  try {
+    const { orderID } = req.params;
+    const { jsonResponse, httpStatusCode } = await captureOrder(orderID);
+    res.status(httpStatusCode).json(jsonResponse);
+  } catch (error) {
+    console.error("Failed to create order:", error);
+    res.status(500).json({ error: "Failed to capture order." });
+  }
+});
+
+app.get("/", (req, res) => {
+  res.sendFile(path.resolve("./client/dist/index.html"));
+});
+app.post('/checkout', async (req, res) => {
+  const { cartItems } = req.body; // Extract cart items from the request body
+  console.log(cartItems);
+  try {
+      // Dynamically create the line items based on the cart items
+      const lineItems = cartItems.map(item => ({
+          price_data: {
+              currency: 'usd',
+              product_data: {
+                  name: item.name, // Use the course name
+              },
+              unit_amount: item.price * 100, // Stripe expects amount in cents
+          },
+          quantity: 1, // Since courses typically have no units
+      }));
+
+      const session = await stripe.checkout.sessions.create({
+          line_items: lineItems,
+          mode: 'payment',
+          success_url: `${process.env.BASE_URL}/complete?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `http://localhost:3000`,
+      });
+
+      res.json({ url: session.url });
+  } catch (error) {
+      console.error('Error creating checkout session:', error);
+      res.status(500).send('Server error');
+  }
+});
+
+app.get('/complete', async (req, res) => {
+    const result = Promise.all([
+        stripe.checkout.sessions.retrieve(req.query.session_id, { expand: ['payment_intent.payment_method'] }),
+        stripe.checkout.sessions.listLineItems(req.query.session_id),
+    ]);
+
+    console.log(JSON.stringify(await result));
+
+    res.send('Your payment was successful');
+});
+
+app.get('/cancel', (req, res) => {
+    res.redirect('/');
+});
+
+app.listen(PORT, () => {
+  console.log(`Node server listening at http://localhost:${PORT}/`);
+});
