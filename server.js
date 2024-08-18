@@ -19,6 +19,7 @@ app.use(express.json());
 app.use(cors())
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 const generateAccessToken = async () => {
