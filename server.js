@@ -154,7 +154,7 @@ app.post('/checkout', async (req, res) => {
       const session = await stripe.checkout.sessions.create({
           line_items: lineItems,
           mode: 'payment',
-          success_url: `https://payment-frontend-8w3x.onrender.com/complete?session_id={CHECKOUT_SESSION_ID}`,
+          success_url: `https://payment-backend-uzml.onrender.com/complete?session_id={CHECKOUT_SESSION_ID}`,
           cancel_url: `https://payment-frontend-8w3x.onrender.com`,
       });
 
