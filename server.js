@@ -155,7 +155,7 @@ app.post('/checkout', async (req, res) => {
           line_items: lineItems,
           mode: 'payment',
           success_url: `${process.env.BASE_URL}/complete?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `http://localhost:3000`,
+          cancel_url: `https://payment-frontend-8w3x.onrender.com`,
       });
 
       res.json({ url: session.url });
